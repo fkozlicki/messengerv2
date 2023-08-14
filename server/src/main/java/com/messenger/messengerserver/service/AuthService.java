@@ -3,6 +3,7 @@ package com.messenger.messengerserver.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.messenger.messengerserver.dto.AuthRequest;
 import com.messenger.messengerserver.dto.AuthResponse;
+import com.messenger.messengerserver.dto.RefreshResponse;
 import com.messenger.messengerserver.model.Token;
 import com.messenger.messengerserver.model.TokenType;
 import com.messenger.messengerserver.model.User;
@@ -43,12 +44,12 @@ public class AuthService {
         saveUserToken(user, jwtToken);
 
         return new AuthResponse(
+                jwtToken,
+                refreshToken,
                 user.getId(),
                 user.getFirstName(),
                 user.getLastName(),
-                user.getEmail(),
-                jwtToken,
-                refreshToken
+                user.getEmail()
         );
     }
 
@@ -95,16 +96,11 @@ public class AuthService {
                 var accessToken = jwtService.generateToken(user);
                 revokeAllUserTokens(user);
                 saveUserToken(user, accessToken);
-                var authResponse = new AuthResponse(
-                        user.getId(),
-                        user.getFirstName(),
-                        user.getLastName(),
-                        user.getEmail(),
-                        accessToken,
-                        refreshToken
-                );
 
-                new ObjectMapper().writeValue(response.getOutputStream(), authResponse);
+                new ObjectMapper().writeValue(
+                        response.getOutputStream(),
+                        new RefreshResponse(accessToken, refreshToken)
+                );
             }
         }
     }
