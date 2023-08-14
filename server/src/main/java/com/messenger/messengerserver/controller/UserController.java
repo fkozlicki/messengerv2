@@ -2,26 +2,36 @@ package com.messenger.messengerserver.controller;
 
 import com.messenger.messengerserver.model.User;
 import com.messenger.messengerserver.service.UserService;
-import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collections;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/users")
-@AllArgsConstructor
-@CrossOrigin(origins = "http://locahost:3000")
+@RequestMapping("/api/v1/user")
+@RequiredArgsConstructor
 public class UserController {
-    private UserService userService;
+    private final UserService userService;
+
+    @PostMapping("/register")
+    public ResponseEntity<?> createUser(@RequestBody User user) {
+        User existingUser = userService.getUserByEmail(user.getEmail());
+        if (existingUser != null) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Collections.singletonMap("message", "User with " +
+                    "this email already exists"));
+        }
+        return new ResponseEntity<>(userService.createUser(user), HttpStatus.CREATED);
+    }
 
     @GetMapping
     public ResponseEntity<List<User>> getAllUsers() {
         return ResponseEntity.ok(userService.getAllUsers());
     }
 
-    @GetMapping("{userId}")
+    @GetMapping("/{userId}")
     public ResponseEntity<?> getUserById(@PathVariable Integer userId) {
         User foundUser = userService.getUserById(userId);
 
@@ -33,7 +43,7 @@ public class UserController {
         return ResponseEntity.ok(foundUser);
     }
 
-    @GetMapping("/search")
+    @PostMapping("/search")
     public ResponseEntity<?> getUsersByName(@RequestParam("name") String name) {
         List<User> users = userService.getUsersByName(name);
         if (users == null) {
