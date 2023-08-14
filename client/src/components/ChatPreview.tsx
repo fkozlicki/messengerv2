@@ -3,7 +3,7 @@ import React from 'react';
 import { UserOutlined } from '@ant-design/icons';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Message } from './ChatList';
+import { ServerMessage } from './ChatList';
 import { calculateEllapsedTime } from '@/utils/calculateEllapsedTime';
 
 interface ChatPreviewProps {
@@ -11,7 +11,7 @@ interface ChatPreviewProps {
 	userId: number;
 	firstName: string;
 	lastName: string;
-	lastMessage?: Message;
+	lastMessage?: ServerMessage;
 }
 
 const ChatPreview = ({
@@ -26,17 +26,17 @@ const ChatPreview = ({
 	return (
 		<Link
 			href={`/chat/${userId}`}
-			className={`p-2 w-full flex justify-start gap-4 hover:bg-blue-950 rounded-lg ${
-				userId === Number(params?.userId) ? 'bg-blue-950' : ''
+			className={`p-2 w-full flex justify-start hover:bg-slate-100 gap-4 rounded-lg ${
+				userId === Number(params?.userId) ? 'bg-slate-100' : ''
 			}`}
 		>
 			<div>
 				<Avatar size={48} icon={<UserOutlined />} />
 			</div>
 			<div className="flex flex-col items-start">
-				<Typography>
+				<Typography.Text>
 					{firstName} {lastName}
-				</Typography>
+				</Typography.Text>
 				{lastMessage && (
 					<Typography>
 						{lastMessage.content} •{' '}

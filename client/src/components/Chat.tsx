@@ -1,165 +1,96 @@
 'use client';
 
-import { SendOutlined, UserOutlined } from '@ant-design/icons';
-import { useQuery } from '@tanstack/react-query';
-import { Avatar, Button, Form, Input, InputRef, Space, Typography } from 'antd';
-import axios from 'axios';
-import { useSession } from 'next-auth/react';
+import { SendOutlined } from '@ant-design/icons';
+import { Button, Form, Input, InputRef } from 'antd';
 import React, { useEffect, useRef, useState } from 'react';
-import { User } from './Profile';
-import { useParams, useRouter } from 'next/navigation';
-import SockJS from 'sockjs-client';
-import { CompatClient, IMessage, Stomp } from '@stomp/stompjs';
-import { Conversation, Message } from './ChatList';
+import { useAuthContext } from '@/contexts/AuthContext';
+import ChatHeader from './ChatHeader';
+import { useMessages } from '@/hooks/useMessages';
+import { connect, sendMessage } from '@/lib/stomp';
+import { useQueryClient } from '@tanstack/react-query';
+import Message from './Message';
+import { IMessage } from '@stomp/stompjs';
 
-let client: CompatClient | null = null;
-const Chat = () => {
-	const { data: session, status } = useSession();
+interface ChatProps {
+	receiverId: number;
+}
+
+const Chat = ({ receiverId }: ChatProps) => {
 	const [messages, setMessages] = useState<Message[]>([]);
 	const [form] = Form.useForm();
 	const inputRef = useRef<InputRef | null>(null);
-	const { push } = useRouter();
-	const params = useParams();
-	const receiverId = params?.userId;
-	const {
-		data: receiver,
-		isLoading,
-		isError,
-	} = useQuery({
-		queryKey: ['receiver'],
-		queryFn: async () => {
-			const data = (
-				await axios.get<User>(
-					`http://localhost:8080/api/v1/users/${receiverId}`,
-					{
-						headers: {
-							Authorization: `Bearer ${session?.user.accessToken}`,
-						},
-					}
-				)
-			).data;
-			return data;
-		},
-		enabled: !!session?.user.accessToken && !!receiverId,
-	});
-	useQuery({
-		queryKey: ['conversation'],
-		queryFn: async () => {
-			const data = (
-				await axios.get<Conversation>(
-					`http://localhost:8080/api/v1/conversation?userOneId=${session?.user.id}&userTwoId=${params?.userId}`,
-					{
-						headers: {
-							Authorization: `Bearer ${session?.user.accessToken}`,
-						},
-					}
-				)
-			).data;
-			return data;
-		},
+	const [{ user }] = useAuthContext();
+	const { isLoading } = useMessages(user!.id, receiverId, {
 		onSuccess(data) {
-			if (data.messages) {
-				setMessages(data.messages);
-			}
+			setMessages(data);
 		},
-		enabled: !!session?.user.id && !!receiverId,
 	});
+	const queryClient = useQueryClient();
 
 	useEffect(() => {
-		if (status === 'loading') {
+		connect(user!.id, onMessageReceive);
+	}, []);
+
+	const onMessageReceive = (message: IMessage) => {
+		if (isLoading) {
 			return;
 		}
-
-		if (status === 'unauthenticated') {
-			push('/');
+		const serverMessage = JSON.parse(message.body) as Message;
+		if (serverMessage.senderId === receiverId) {
+			const clientMessage = {
+				senderId: serverMessage.senderId,
+				receiverId: serverMessage.receiverId,
+				content: serverMessage.content,
+			};
+			setMessages((prev) => [...prev, clientMessage]);
 		} else {
-			connect();
-		}
-	}, [session]);
-
-	const connect = () => {
-		const socket = new SockJS(`http://localhost:8080/ws`);
-		client = Stomp.over(socket);
-		client.connect({}, onConnected);
-	};
-
-	const onConnected = () => {
-		if (client) {
-			client.subscribe(
-				`/user/${session?.user.id}/queue/messages`,
-				onMessageReceived
-			);
+			queryClient.invalidateQueries(['conversations']);
 		}
 	};
 
-	const onMessageReceived = (message: IMessage) => {
-		setMessages((prev) => [...prev, JSON.parse(message.body)]);
-	};
-
-	const sendMessage = (text: string) => {
+	const onMessageSend = ({ content }: { content: string }) => {
 		const message = {
-			senderId: session?.user.id,
+			senderId: user!.id,
 			receiverId,
-			content: text,
+			content,
 		};
-		client?.send('/app/conversation', {}, JSON.stringify(message));
-	};
-
-	const onFinish = ({ message }: { message: string }) => {
-		sendMessage(message);
+		sendMessage(JSON.stringify(message));
+		if (user!.id !== receiverId) {
+			setMessages((prev) => [...prev, message]);
+		}
 		form.resetFields();
-		inputRef.current && inputRef.current.focus();
+		queryClient.invalidateQueries(['conversations']);
 	};
-
-	if (isLoading || isError) {
-		return (
-			<div className="flex h-full items-center justify-center">
-				<Typography.Text className="text-2xl">
-					Select chat or start new conversation
-				</Typography.Text>
-			</div>
-		);
-	}
-
-	const { firstName, lastName } = receiver;
 
 	return (
-		<div className="flex flex-col h-full bg-[#191937]">
-			<div className="w-full border-b border-slate-500 p-1">
-				<div className="inline-flex gap-4 p-1">
-					<Avatar size="large" icon={<UserOutlined />} />
-					<div>
-						<Typography.Text>
-							{firstName} {lastName}
-						</Typography.Text>
-						<Typography>last avtive 55m</Typography>
-					</div>
-				</div>
-			</div>
+		<div className="flex flex-col h-full">
+			<ChatHeader userId={receiverId} />
 			<div className="max-h-full flex-1 overflow-y-scroll">
-				<div className="flex flex-col p-4 flex-1">
-					{messages ? (
-						messages.map((message, index) => (
-							<div
+				{isLoading ? (
+					<div className="h-full grid place-items-center">
+						Loading messages...
+					</div>
+				) : messages.length > 0 ? (
+					<div className="flex flex-col p-4 flex-1">
+						{messages.map((message, index) => (
+							<Message
 								key={index}
-								className={`${
-									session?.user.id === message.sender.id
-										? 'self-end bg-[#0084ff]'
-										: 'self-start bg-slate-500'
-								} px-3 py-[6px] rounded-full mb-0.5`}
-							>
-								<Typography.Text>{message.content}</Typography.Text>
-							</div>
-						))
-					) : (
-						<Typography.Text>Start conversation</Typography.Text>
-					)}
-				</div>
+								userId={user!.id}
+								senderId={message.senderId}
+								content={message.content}
+							/>
+						))}
+					</div>
+				) : (
+					<div className="h-full grid place-items-center">
+						Start conversation
+					</div>
+				)}
 			</div>
-			<Form form={form} onFinish={onFinish} className="flex p-2">
+			<Form form={form} onFinish={onMessageSend} className="flex p-2 gap-2">
 				<Form.Item
 					className="flex-1 mb-0"
-					name="message"
+					name="content"
 					rules={[{ required: true }]}
 					help=""
 				>
@@ -167,14 +98,14 @@ const Chat = () => {
 						classNames={{ input: 'text-black rounded-full' }}
 						placeholder="Aa"
 						ref={inputRef}
+						autoFocus
 					/>
 				</Form.Item>
 				<Button
-					className="leading-3 mx-2"
 					type="default"
 					htmlType="submit"
 					shape="circle"
-					icon={<SendOutlined className="ml-[2px]" />}
+					icon={<SendOutlined />}
 				/>
 			</Form>
 		</div>

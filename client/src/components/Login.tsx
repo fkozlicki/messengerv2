@@ -1,30 +1,11 @@
 'use client';
 
 import React from 'react';
-import { Button, Checkbox, Form, Input } from 'antd';
-import { useMutation } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
-import axios from 'axios';
-import { signIn } from 'next-auth/react';
-
-interface LoginPayload {
-	email: string;
-	password: string;
-}
-
-interface LoginResponse {
-	accessToken: string;
-	refresh_token: string;
-}
-
-const authenticate = async (payload: LoginPayload) =>
-	await signIn('credentials', { ...payload });
+import { Button, Form, Input } from 'antd';
+import { LoginPayload, useLogin } from '@/hooks/useLogin';
 
 const Login = () => {
-	const { push } = useRouter();
-	const { mutate } = useMutation({
-		mutationFn: authenticate,
-	});
+	const { mutate } = useLogin();
 
 	const login = (values: LoginPayload) => {
 		mutate(values);
@@ -36,7 +17,6 @@ const Login = () => {
 			labelCol={{ span: 8 }}
 			wrapperCol={{ span: 16 }}
 			style={{ maxWidth: 600 }}
-			initialValues={{ remember: true }}
 			onFinish={login}
 			autoComplete="off"
 		>
@@ -45,7 +25,7 @@ const Login = () => {
 				name="email"
 				rules={[{ required: true, message: 'Please input your username!' }]}
 			>
-				<Input className="text-black" />
+				<Input />
 			</Form.Item>
 
 			<Form.Item
@@ -53,7 +33,7 @@ const Login = () => {
 				name="password"
 				rules={[{ required: true, message: 'Please input your password!' }]}
 			>
-				<Input.Password classNames={{ input: 'text-black' }} />
+				<Input.Password />
 			</Form.Item>
 
 			<Form.Item wrapperCol={{ offset: 8, span: 16 }}>

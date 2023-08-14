@@ -1,66 +1,35 @@
 import React, { useState } from 'react';
 import ChatPreview from './ChatPreview';
 import { Button, Form, Input, Typography } from 'antd';
-import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
-import { User } from './Profile';
-import { useSession } from 'next-auth/react';
 import { ArrowLeftOutlined } from '@ant-design/icons';
-
-export interface Message {
-	content: string;
-	createdAt: string;
-	id?: number;
-	receiver: User;
-	sender: User;
-}
-
-export interface Conversation {
-	id: number;
-	userOne: User;
-	userTwo: User;
-	messages: Message[];
-}
+import { useAuthContext } from '@/contexts/AuthContext';
+import { useConversations } from '@/hooks/useConversations';
+import { useSearch } from '@/hooks/useSearch';
+import { useRouter, usePathname } from 'next/navigation';
+import { useToken } from 'antd/es/theme/internal';
 
 const ChatList = () => {
+	const { push } = useRouter();
+	const pathname = usePathname();
 	const [searchOpen, setSearchOpen] = useState<boolean>(false);
 	const [form] = Form.useForm();
-	const name = Form.useWatch('name', form);
-	const { data: session } = useSession();
-	const { data: conversations } = useQuery({
-		queryKey: ['conversations'],
-		queryFn: async () => {
-			const data = (
-				await axios.get<Conversation[]>(
-					`http://localhost:8080/api/v1/conversation/all?userId=${session?.user.id}`,
-					{
-						headers: {
-							Authorization: `Bearer ${session?.user.accessToken}`,
-						},
-					}
-				)
-			).data;
-			return data;
+	const [{ user }] = useAuthContext();
+	const { data: conversations } = useConversations(user!.id, {
+		onSuccess(data) {
+			const firstConversation = data[0];
+			if (pathname === '/' && firstConversation) {
+				push(
+					`/chat/${
+						firstConversation.userOne.id === user!.id
+							? firstConversation.userTwo.id
+							: firstConversation.userOne.id
+					}`
+				);
+			}
 		},
-		enabled: !!session?.user.accessToken && !!session?.user.id,
 	});
-	const { data: searchedUsers } = useQuery({
-		queryKey: ['search', name],
-		queryFn: async () => {
-			const data = (
-				await axios.get<User[]>(
-					`http://localhost:8080/api/v1/users/search?name=${name}`,
-					{
-						headers: {
-							Authorization: `Bearer ${session?.user.accessToken}`,
-						},
-					}
-				)
-			).data;
-			return data;
-		},
-		enabled: !!session?.user.accessToken && !!name,
-	});
+	const { mutate, data: searchedUsers, reset } = useSearch();
+	const [, { colorBorderBg }] = useToken();
 
 	const handleSearchOpen = () => {
 		setSearchOpen(true);
@@ -70,20 +39,31 @@ const ChatList = () => {
 		setSearchOpen(false);
 	};
 
+	const onValuesChange = ({ name }: { name: string }) => {
+		if (name.length === 0) {
+			reset();
+		} else {
+			mutate(name);
+		}
+	};
+
 	return (
-		<div className="flex flex-col border-r border-slate-500 w-[360px]">
+		<div
+			className={`flex flex-col border-r border-[${colorBorderBg}] w-[360px]`}
+		>
 			<div className="p-4 ">
-				<Typography className="text-2xl font-bold mb-4">Chats</Typography>
+				<Typography.Paragraph className="text-2xl font-bold mb-4">
+					Chats
+				</Typography.Paragraph>
 				<div className="flex gap-2">
 					{searchOpen && (
 						<Button
 							icon={<ArrowLeftOutlined />}
 							shape="circle"
-							className="leading-3"
 							onClick={handleSearchClose}
 						/>
 					)}
-					<Form form={form} className="flex-1">
+					<Form form={form} onValuesChange={onValuesChange} className="flex-1">
 						<Form.Item name="name">
 							<Input
 								className="text-black rounded-full"
@@ -95,8 +75,7 @@ const ChatList = () => {
 				</div>
 			</div>
 			{searchOpen ? (
-				searchedUsers &&
-				searchedUsers?.length > 0 && (
+				searchedUsers && (
 					<div>
 						{searchedUsers.map(({ id, firstName, lastName }, index) => (
 							<ChatPreview
@@ -111,14 +90,9 @@ const ChatList = () => {
 				)
 			) : (
 				<div className="px-2 h-full">
-					{conversations && conversations?.length > 0 ? (
-						conversations?.map(({ userOne, userTwo, messages }, index) => {
-							const receiver =
-								userOne.id === userTwo.id
-									? userOne
-									: userOne.id === session?.user.id
-									? userTwo
-									: userOne;
+					{conversations && conversations.length > 0 ? (
+						conversations.map(({ userOne, userTwo, lastMessage }, index) => {
+							const receiver = userOne.id === user!.id ? userTwo : userOne;
 							const { id, firstName, lastName } = receiver;
 
 							return (
@@ -127,7 +101,7 @@ const ChatList = () => {
 									userId={id}
 									firstName={firstName}
 									lastName={lastName}
-									lastMessage={messages[messages.length - 1]}
+									lastMessage={lastMessage}
 									image=""
 								/>
 							);

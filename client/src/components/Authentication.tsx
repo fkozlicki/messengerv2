@@ -1,21 +1,12 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import Login from './Login';
 import Register from './Register';
 import { Button } from 'antd';
-import { useRouter } from 'next/navigation';
 
 const Authentication = () => {
 	const [login, setLogin] = useState(true);
-	const { push } = useRouter();
-
-	useEffect(() => {
-		// const token = localStorage.getItem('accessToken');
-		// if (token) {
-		// 	push('/');
-		// }
-	}, []);
 
 	const openLogin = () => {
 		setLogin(true);
