@@ -1,8 +1,8 @@
-import ChatPanel from '@/components/ChatPanel';
+import Chat from '@/components/Chat';
 import React from 'react';
 
-const Chat = () => {
-	return <ChatPanel />;
+const page = ({ params: { userId } }: { params: { userId: string } }) => {
+	return <Chat receiverId={Number(userId)} />;
 };
 
-export default Chat;
+export default page;

@@ -4,6 +4,7 @@ import 'antd/dist/reset.css';
 import './globals.css';
 import Providers from '@/components/Providers';
 import { ReactNode } from 'react';
+import Layout from '@/components/Layout';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata = {
@@ -14,9 +15,11 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
 	return (
 		<html lang="en">
-			<Providers>
-				<body className={inter.className}>{children}</body>
-			</Providers>
+			<body className={inter.className}>
+				<Providers>
+					<Layout>{children}</Layout>
+				</Providers>
+			</body>
 		</html>
 	);
 }
